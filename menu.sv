@@ -31,8 +31,12 @@ module MENU
 	output        HDMI_VS,
 	output        HDMI_PCLK,
 	output        HDMI_DE,
-	output        HDMI_SDA,
-	output        HDMI_SCL,
+	inout         HDMI_SDA,
+	inout         HDMI_SCL,
+	input         HDMI_INT,
+	output        HDMI_BCK,
+	output        HDMI_LRCK,
+	output        HDMI_AUDIO,
 `endif
 
 	input         SPI_SCK,
@@ -112,6 +116,13 @@ localparam VGA_BITS = 8;
 localparam VGA_BITS = 6;
 `endif
 
+`ifdef USE_HDMI
+localparam bit HDMI = 1;
+assign HDMI_RST = 1'b1;
+`else
+localparam bit HDMI = 0;
+`endif
+
 `ifdef BIG_OSD
 localparam bit BIG_OSD = 1;
 localparam SEP = "-;";
@@ -167,7 +178,18 @@ wire           ypbpr;
 wire           no_csync;
 wire    [63:0] status;
 
-user_io #(.STRLEN($size(CONF_STR)>>3), .FEATURES(32'd1 | (BIG_OSD << 13)), .ROM_DIRECT_UPLOAD(DIRECT_UPLOAD)) user_io
+`ifdef USE_HDMI
+wire        i2c_start;
+wire        i2c_read;
+wire  [6:0] i2c_addr;
+wire  [7:0] i2c_subaddr;
+wire  [7:0] i2c_dout;
+wire  [7:0] i2c_din;
+wire        i2c_ack;
+wire        i2c_end;
+`endif
+
+user_io #(.STRLEN($size(CONF_STR)>>3), .FEATURES(32'd1 | (BIG_OSD << 13) | (HDMI << 14)), .ROM_DIRECT_UPLOAD(DIRECT_UPLOAD)) user_io
 (
 	.clk_sys(clk_x2),
 	.conf_str(CONF_STR),
@@ -177,7 +199,18 @@ user_io #(.STRLEN($size(CONF_STR)>>3), .FEATURES(32'd1 | (BIG_OSD << 13)), .ROM_
 	.SPI_MISO(SPI_DO),
 	.SPI_MOSI(SPI_DI),
 	.status(status),
+
 	.scandoubler_disable(scandoubler_disable),
+`ifdef USE_HDMI
+	.i2c_start      ( i2c_start      ),
+	.i2c_read       ( i2c_read       ),
+	.i2c_addr       ( i2c_addr       ),
+	.i2c_subaddr    ( i2c_subaddr    ),
+	.i2c_dout       ( i2c_dout       ),
+	.i2c_din        ( i2c_din        ),
+	.i2c_ack        ( i2c_ack        ),
+	.i2c_end        ( i2c_end        ),
+`endif
 	.ypbpr(ypbpr),
 	.no_csync(no_csync)
 );
@@ -323,22 +356,23 @@ cos cos(vvc + {vc, 2'b00}, cos_out);
 wire [7:0] comp_v = (cos_g >= rnd_c) ? cos_g - rnd_c : 8'd0;
 
 ///// Bitmap
-wire [VGA_BITS-1:0] bmp_r = cpu_q[23:24-VGA_BITS];
-wire [VGA_BITS-1:0] bmp_g = cpu_q[15:16-VGA_BITS];
-wire [VGA_BITS-1:0] bmp_b = cpu_q[7:8-VGA_BITS];
+wire [7:0] bmp_r = cpu_q[23:16];
+wire [7:0] bmp_g = cpu_q[15: 8];
+wire [7:0] bmp_b = cpu_q[7 : 0];
 
 ///// Final pixel value
-wire [VGA_BITS-1:0] R_in = !viden ? {VGA_BITS{1'b0}} : bmp_loaded ? bmp_r : comp_v[7:8-VGA_BITS];
-wire [VGA_BITS-1:0] G_in = !viden ? {VGA_BITS{1'b0}} : bmp_loaded ? bmp_g : comp_v[7:8-VGA_BITS];
-wire [VGA_BITS-1:0] B_in = !viden ? {VGA_BITS{1'b0}} : bmp_loaded ? bmp_b : comp_v[7:8-VGA_BITS];
+wire [7:0] R_in = bmp_loaded ? bmp_r : comp_v;
+wire [7:0] G_in = bmp_loaded ? bmp_g : comp_v;
+wire [7:0] B_in = bmp_loaded ? bmp_b : comp_v;
 
 mist_video #(
-	.COLOR_DEPTH(VGA_BITS),
+	.COLOR_DEPTH(8),
 	.SD_HCNT_WIDTH(10),
 	.OSD_X_OFFSET(10),
 	.OSD_Y_OFFSET(0),
 	.OSD_COLOR(4),
 	.OUT_COLOR_DEPTH(VGA_BITS),
+	.USE_BLANKS(1),
 	.BIG_OSD(BIG_OSD)
 ) mist_video (
 	.clk_sys        ( clk_x2           ),
@@ -348,6 +382,8 @@ mist_video #(
 	.R              ( R_in             ),
 	.G              ( G_in             ),
 	.B              ( B_in             ),
+	.HBlank         ( HBlank           ),
+	.VBlank         ( VBlank           ),
 	.HSync          ( ~HSync           ),
 	.VSync          ( ~VSync           ),
 	.VGA_R          ( VGA_R            ),
@@ -363,5 +399,67 @@ mist_video #(
 	.ypbpr          ( ypbpr            ),
 	.no_csync       ( no_csync         )
 	);
+
+`ifdef USE_HDMI
+i2c_master #(20_000_000) i2c_master (
+	.CLK         (clk_x2),
+	.START       (i2c_start),
+	.READ        (i2c_read),
+	.I2C_ADDR    (i2c_addr),
+	.I2C_SUBADDR (i2c_subaddr),
+	.I2C_WDATA   (i2c_dout),
+	.I2C_RDATA   (i2c_din),
+	.END         (i2c_end),
+	.ACK         (i2c_ack),
+
+	//I2C bus
+	.I2C_SCL     (HDMI_SCL),
+	.I2C_SDA     (HDMI_SDA)
+);
+
+wire HDMI_VB, HDMI_HB;
+
+mist_video #(
+	.COLOR_DEPTH(8),
+	.SD_HCNT_WIDTH(10),
+	.OSD_X_OFFSET(10),
+	.OSD_Y_OFFSET(0),
+	.OSD_COLOR(4),
+	.OUT_COLOR_DEPTH(8),
+	.USE_BLANKS(1),
+	.BIG_OSD(BIG_OSD),
+	.VIDEO_CLEANER(1)
+) hdmi_video (
+	.clk_sys        ( clk_x2           ),
+	.SPI_SCK        ( SPI_SCK          ),
+	.SPI_SS3        ( SPI_SS3          ),
+	.SPI_DI         ( SPI_DI           ),
+	.R              ( R_in             ),
+	.G              ( G_in             ),
+	.B              ( B_in             ),
+	.HBlank         ( HBlank           ),
+	.VBlank         ( VBlank           ),
+	.HSync          ( ~HSync           ),
+	.VSync          ( ~VSync           ),
+	.VGA_R          ( HDMI_R           ),
+	.VGA_G          ( HDMI_G           ),
+	.VGA_B          ( HDMI_B           ),
+	.VGA_VS         ( HDMI_VS          ),
+	.VGA_HS         ( HDMI_HS          ),
+	.VGA_HB         ( HDMI_HB          ),
+	.VGA_VB         ( HDMI_VB          ),
+	.ce_divider     ( 3'd1             ),
+	.rotate         ( {rotate[0], |rotate} ),
+	.blend          ( 1'b0             ),
+	.scandoubler_disable( 1'b0         ),
+	.scanlines      ( 2'b00            ),
+	.ypbpr          ( 1'b0             ),
+	.no_csync       ( 1'b1             )
+	);
+
+assign HDMI_PCLK = clk_x2;
+assign HDMI_DE = ~(HDMI_VB | HDMI_HB);
+
+`endif
 
 endmodule
