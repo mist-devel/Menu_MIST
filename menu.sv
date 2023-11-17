@@ -153,8 +153,8 @@ pll pll
 (
 	.inclk0(CLOCK_27),
 	.c0(clk_ram),
-	.c2(clk_x2),
-	.c3(clk_pix),
+	.c1(clk_x2),
+	.c2(clk_pix),
 	.locked(pll_locked)
 );
 
@@ -276,7 +276,7 @@ always @(posedge clk_ram) begin
 	cpu1_addr <= (((line_max-1'd1-vc)<<9)+hc)<<2;
 end
 
-sdram #(.MHZ(80)) sdram(
+sdram #(.MHZ(50)) sdram(
 	.*,
 	.init_n        ( pll_locked   ),
 	.clk           ( clk_ram      ),
@@ -313,7 +313,7 @@ wire [22:0] rnd;
 lfsr random(rnd);
 
 always @(posedge clk_pix) begin
-	if(hc == 639) begin
+	if(hc == 799) begin
 		hc <= 0;
 		if(vc == line_max-1) begin
 			vc <= 0;
@@ -332,17 +332,16 @@ reg  HBlank;
 reg  HSync;
 reg  VBlank;
 reg  VSync;
-wire viden  = !HBlank && !VBlank;
 
 always @(posedge clk_pix) begin
-	if (hc == 513) HBlank <= 1;
+	if (hc == 639) HBlank <= 1;
 		else if (hc == 1) HBlank <= 0;
 
-	if (hc == 535) HSync <= 1;
-		else if (hc == 567) HSync <= 0;
+	if (hc == 655) HSync <= 1;
+		else if (hc == 751) HSync <= 0;
 
-	if(vc == line_max-3 && hc == 535) VSync <= 1;
-		else if (vc == 0 && hc == 567) VSync <= 0;
+	if(vc == line_max-3 && hc == 655) VSync <= 1;
+		else if (vc == 0 && hc == 751) VSync <= 0;
 
 	if(vc == line_max-5) VBlank <= 1;
 		else if (vc == 2) VBlank <= 0;
@@ -371,6 +370,7 @@ mist_video #(
 	.OSD_X_OFFSET(10),
 	.OSD_Y_OFFSET(0),
 	.OSD_COLOR(4),
+	.OSD_AUTO_CE(0),
 	.OUT_COLOR_DEPTH(VGA_BITS),
 	.USE_BLANKS(1),
 	.BIG_OSD(BIG_OSD)
@@ -401,7 +401,7 @@ mist_video #(
 	);
 
 `ifdef USE_HDMI
-i2c_master #(20_000_000) i2c_master (
+i2c_master #(25_000_000) i2c_master (
 	.CLK         (clk_x2),
 	.START       (i2c_start),
 	.READ        (i2c_read),
@@ -425,6 +425,7 @@ mist_video #(
 	.OSD_X_OFFSET(10),
 	.OSD_Y_OFFSET(0),
 	.OSD_COLOR(4),
+	.OSD_AUTO_CE(0),
 	.OUT_COLOR_DEPTH(8),
 	.USE_BLANKS(1),
 	.BIG_OSD(BIG_OSD),
