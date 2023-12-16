@@ -403,14 +403,14 @@ mist_video #(
 `ifdef USE_HDMI
 i2c_master #(25_000_000) i2c_master (
 	.CLK         (clk_x2),
-	.START       (i2c_start),
-	.READ        (i2c_read),
+	.I2C_START   (i2c_start),
+	.I2C_READ    (i2c_read),
 	.I2C_ADDR    (i2c_addr),
 	.I2C_SUBADDR (i2c_subaddr),
 	.I2C_WDATA   (i2c_dout),
 	.I2C_RDATA   (i2c_din),
-	.END         (i2c_end),
-	.ACK         (i2c_ack),
+	.I2C_END     (i2c_end),
+	.I2C_ACK     (i2c_ack),
 
 	//I2C bus
 	.I2C_SCL     (HDMI_SCL),
@@ -449,6 +449,7 @@ mist_video #(
 	.VGA_HS         ( HDMI_HS          ),
 	.VGA_HB         ( HDMI_HB          ),
 	.VGA_VB         ( HDMI_VB          ),
+	.VGA_DE         ( HDMI_DE          ),
 	.ce_divider     ( 3'd1             ),
 	.rotate         ( {rotate[0], |rotate} ),
 	.blend          ( 1'b0             ),
@@ -459,7 +460,6 @@ mist_video #(
 	);
 
 assign HDMI_PCLK = clk_x2;
-assign HDMI_DE = ~(HDMI_VB | HDMI_HB);
 
 `endif
 
