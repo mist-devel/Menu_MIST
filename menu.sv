@@ -273,7 +273,7 @@ wire [31:0] cpu_q;
 wire [23:0] cpu1_addr;
 
 always @(posedge clk_ram) begin
-	cpu1_addr <= (((line_max-1'd1-vc)<<9)+hc)<<2;
+	cpu1_addr <= (((line_max-1'd1-vc)*640)+hc)<<2;
 end
 
 sdram #(.MHZ(50)) sdram(
@@ -334,8 +334,14 @@ reg  VBlank;
 reg  VSync;
 
 always @(posedge clk_pix) begin
-	if (hc == 639) HBlank <= 1;
-		else if (hc == 1) HBlank <= 0;
+	if (hc == 640+2) begin
+		HBlank <= 1;
+		if (vc == line_max-5) VBlank <= 1;
+	end
+	if (hc == 2) begin
+		HBlank <= 0;
+		if (vc == 2) VBlank <= 0;
+	end
 
 	if (hc == 655) HSync <= 1;
 		else if (hc == 751) HSync <= 0;
@@ -343,8 +349,6 @@ always @(posedge clk_pix) begin
 	if(vc == line_max-3 && hc == 655) VSync <= 1;
 		else if (vc == 0 && hc == 751) VSync <= 0;
 
-	if(vc == line_max-5) VBlank <= 1;
-		else if (vc == 2) VBlank <= 0;
 end
 
 ///// Noise
@@ -391,7 +395,7 @@ mist_video #(
 	.VGA_B          ( VGA_B            ),
 	.VGA_VS         ( VGA_VS           ),
 	.VGA_HS         ( VGA_HS           ),
-	.ce_divider     ( 1'b1             ),
+	.ce_divider     ( 3'd1             ),
 	.rotate         ( {rotate[0], |rotate} ),
 	.blend          ( 1'b0             ),
 	.scandoubler_disable( scandoubler_disable ),
