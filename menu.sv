@@ -329,7 +329,7 @@ always @(posedge clk_pix) begin
 end
 
 reg  HBlank;
-reg  HSync;
+reg  HSync, HSync_VGA;
 reg  VBlank;
 reg  VSync;
 
@@ -343,8 +343,12 @@ always @(posedge clk_pix) begin
 		if (vc == 2) VBlank <= 0;
 	end
 
-	if (hc == 655) HSync <= 1;
-		else if (hc == 751) HSync <= 0;
+	if (hc == 655) begin
+		HSync <= 1;
+		HSync_VGA <= 1;
+	end
+	if (hc == 655+64) HSync <= 0;
+	if (hc == 655+96) HSync_VGA <= 0;
 
 	if(vc == line_max-3 && hc == 655) VSync <= 1;
 		else if (vc == 0 && hc == 751) VSync <= 0;
@@ -388,7 +392,7 @@ mist_video #(
 	.B              ( B_in             ),
 	.HBlank         ( HBlank           ),
 	.VBlank         ( VBlank           ),
-	.HSync          ( ~HSync           ),
+	.HSync          ( scandoubler_disable ? ~HSync : ~HSync_VGA ),
 	.VSync          ( ~VSync           ),
 	.VGA_R          ( VGA_R            ),
 	.VGA_G          ( VGA_G            ),
@@ -444,7 +448,7 @@ mist_video #(
 	.B              ( B_in             ),
 	.HBlank         ( HBlank           ),
 	.VBlank         ( VBlank           ),
-	.HSync          ( ~HSync           ),
+	.HSync          ( ~HSync_VGA       ),
 	.VSync          ( ~VSync           ),
 	.VGA_R          ( HDMI_R           ),
 	.VGA_G          ( HDMI_G           ),
