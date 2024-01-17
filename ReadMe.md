@@ -6,4 +6,4 @@ Put [this core](https://github.com/sorgelig/Menu_MIST/tree/master/release) to th
 
 ### Background image
 
-A BMP file with the dimensions of 512x312 and 32 bit color depth can be added as a background image. Just upload this BMP as MENU.ROM to the root of the SD Card.
+A BMP file with the dimensions of 640x312 and 32 bit color depth can be added as a background image. Just upload this BMP as MENU.ROM to the root of the SD Card.
