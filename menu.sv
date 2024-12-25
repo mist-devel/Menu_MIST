@@ -471,4 +471,6 @@ assign HDMI_PCLK = clk_x2;
 
 `endif
 
+assign UART_TX = 1'bz;
+
 endmodule
